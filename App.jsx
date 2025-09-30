@@ -1,10 +1,9 @@
 import { clsx } from "clsx";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Confetti from "react-confetti";
 import Header from "./Header.jsx";
 import { languages } from "./languages.js";
 import { getFarewellText, randomWord } from "./utils.js";
-import Timer from "./Timer.jsx";
 
 /*1- Display the remaining guesses left 
   2- Render some kind of anti-confetti when the Game is lost 
@@ -12,9 +11,14 @@ import Timer from "./Timer.jsx";
 */
 
 export default function AssemblyEndGame() {
+  // constants
+  const time = 30;
+
   // states
   const [currentWord, setCurrentWord] = useState(() => randomWord());
   const [guessedLetters, setGuessedLetters] = useState([]);
+  const [counter, setCounter] = useState(time);
+  const [isRunning, setIsRunning] = useState(false);
 
   // derived values
   const wrongGuessesCount = guessedLetters.filter(
@@ -23,10 +27,27 @@ export default function AssemblyEndGame() {
   const isGameWon = currentWord
     .split("")
     .every((letter) => guessedLetters.includes(letter));
-  const isGameLost = wrongGuessesCount + 1 >= languages.length;
+  const isGameLost = wrongGuessesCount + 1 >= languages.length || counter <= 0;
   const isGameOver = isGameLost || isGameWon;
   const nomGuessesLeft = languages.length - 1 - wrongGuessesCount;
+  //useEffect
 
+  useEffect(() => {
+    if (!isRunning || isGameOver) return;
+
+    const timer = setInterval(() => {
+      setCounter((t) => t - 1);
+    }, 1000);
+    const stopTimer = setTimeout(() => {
+      clearInterval(timer);
+      console.log("IntervalStopped");
+    }, time * 1000);
+
+    return () => {
+      clearInterval(timer);
+      clearTimeout(stopTimer);
+    };
+  }, [isRunning, isGameOver]);
   // static values
   const languageElements = languages.map((lang, index) => {
     const className = index < wrongGuessesCount ? "lost" : "";
@@ -44,7 +65,9 @@ export default function AssemblyEndGame() {
     );
   });
 
-  const randomMsg = languages.map((lang) => getFarewellText(lang.name));
+  const randomMsg = useMemo(() => {
+    return languages.map((lang) => getFarewellText(lang.name));
+  }, []);
 
   const lettersArray = currentWord.split("");
   const letterElements = lettersArray.map((letter, index) => {
@@ -89,8 +112,13 @@ export default function AssemblyEndGame() {
   }
 
   function newGame() {
-    setCurrentWord(randomWord());
-    setGuessedLetters([]);
+    setIsRunning(false);
+    setTimeout(() => {
+      setCurrentWord(randomWord());
+      setGuessedLetters([]);
+      setCounter(time);
+      setIsRunning(true);
+    }, 0);
   }
 
   const lastGuessedLetter = guessedLetters[guessedLetters.length - 1];
@@ -105,9 +133,9 @@ export default function AssemblyEndGame() {
 
   return (
     <main>
-      <Timer className="check" />
       {isGameWon && <Confetti recycle={false} numberOfPieces={1000} />}
       <Header />
+      <section className="timer">{`Time Remaining ${counter}`}</section>
       {
         <section className="guess-left">
           <p>Attempts Left {nomGuessesLeft}</p>
@@ -127,7 +155,7 @@ export default function AssemblyEndGame() {
       <section className="language-chips">{languageElements}</section>
       <section className="word">{letterElements}</section>
       <section className="keyboard">{key}</section>
-      {(isGameLost || isGameWon) && (
+      {(isGameLost || isGameWon || !isRunning) && (
         <button onClick={newGame} className="new-game">
           New Game
         </button>
